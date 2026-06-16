@@ -52,8 +52,8 @@ app.post('/api/send-offer', async (req, res) => {
 
     const emailHtml = `
       <p>Hi ${name},</p>
-      <p>We're happy to offer you the position of <strong>Twitter Growth Assistant</strong> at FanFame Media.</p>
-      <p>Your salary will be <strong>₹${salary}</strong> per month.</p>
+      <p>We're happy to offer you the position of Twitter Growth Assistant at FanFame Media.</p>
+      <p>Your salary will be ₹${salary} per month.</p>
       <p>As a Twitter Growth Assistant, you will be responsible for managing assigned Twitter/X accounts and following lead lists provided by the company. Training and clear instructions will be provided, and your role is to complete the assigned daily tasks consistently and accurately.</p>
       <p>We're looking for someone who is reliable, consistent, able to follow instructions, comfortable with repetitive tasks, and communicates professionally.</p>
       <p>Any company accounts, systems, SOPs, lead lists, or internal information shared with you must remain confidential and may not be shared with anyone outside the company.</p>
@@ -62,7 +62,7 @@ app.post('/api/send-offer', async (req, res) => {
       <p>We're excited to have you join the team.</p>
       <br>
       <p>Best regards,</p>
-      <p><strong>George</strong><br>FanFame Media</p>
+      <p>George<br>FanFame Media</p>
     `;
 
     const mailOptions = {
