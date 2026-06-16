@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FanFame Offer Portal</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f7f6; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); width: 100%; max-width: 400px; }
+        h2 { margin-top: 0; color: #111; text-align: center; }
+        label { display: block; margin: 12px 0 6px; font-weight: 500; color: #444; }
+        input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+        button { width: 100%; background: #0070f3; color: white; padding: 12px; border: none; border-radius: 6px; margin-top: 20px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+        button:hover { background: #0051a8; }
+        #status { text-align: center; margin-top: 15px; font-weight: 500; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h2>FanFame Media Portal</h2>
+    <form id="offerForm">
+        <label>Candidate Name</label>
+        <input type="text" id="name" required placeholder="John Doe">
+        <label>Candidate Email</label>
+        <input type="email" id="email" required placeholder="john@example.com">
+        <label>Start Date</label>
+        <input type="date" id="startDate" required>
+        <label>Salary (₹ per month)</label>
+        <input type="number" id="salary" required placeholder="25000">
+        <button type="submit" id="submitBtn">Generate & Send Offer</button>
+    </form>
+    <div id="status"></div>
+</div>
+<script>
+    document.getElementById('offerForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('submitBtn');
+        const statusDiv = document.getElementById('status');
+        btn.disabled = true;
+        btn.innerText = "Sending Email...";
+        statusDiv.innerText = "";
+        const payload = {
+            name: document.getElementById('name').value,
+            email: document.getElementById('email').value,
+            startDate: document.getElementById('startDate').value,
+            salary: document.getElementById('salary').value
+        };
+        try {
+            const response = await fetch('/api/send-offer', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await response.json();
+            if (response.ok) {
+                statusDiv.style.color = "green";
+                statusDiv.innerText = "🎉 Success! Offer letter emailed.";
+                document.getElementById('offerForm').reset();
+            } else {
+                throw new Error(data.error || "Something went wrong.");
+            }
+        } catch (err) {
+            statusDiv.style.color = "red";
+            statusDiv.innerText = "❌ Error: " + err.message;
+        } finally {
+            btn.disabled = false;
+            btn.innerText = "Generate & Send Offer";
+        }
+    });
+</script>
+</body>
+</html>
