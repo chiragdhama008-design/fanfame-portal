@@ -4,8 +4,8 @@
   "main": "api/index.js",
   "dependencies": {
     "cors": "^2.8.5",
-    "docx-templates": "^4.13.0",
-    "dotenv": "^16.4.5",
+    "docxtemplater": "^3.45.0",
+    "pizzip": "^3.1.7",
     "express": "^4.19.2",
     "nodemailer": "^6.9.13"
   }
