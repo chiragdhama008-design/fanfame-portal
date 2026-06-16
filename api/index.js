@@ -1,7 +1,7 @@
 const express = require('express');
 const nodemailer = require('nodemailer');
-const DocxTemplateModule = require('docx-templates');
-const DocxTemplate = DocxTemplateModule.DocxTemplate || DocxTemplateModule.default || DocxTemplateModule;
+const PizZip = require('pizzip');
+const Docxtemplater = require('docxtemplater');
 const fs = require('fs');
 const path = require('path');
 const cors = require('cors');
@@ -24,17 +24,32 @@ app.post('/api/send-offer', async (req, res) => {
         return res.status(500).json({ error: 'OfferLetter.docx not found in server root.' });
     }
     
-    const templateBuffer = fs.readFileSync(templatePath);
+    // Read the file as binary
+    const content = fs.readFileSync(templatePath, 'binary');
 
-    const updatedDocBuffer = await DocxTemplate.create({
-      template: templateBuffer,
-      data: {
+    // Load the docx data into PizZip
+    const zip = new PizZip(content);
+
+    // Initialize Docxtemplater
+    const doc = new Docxtemplater(zip, {
+        paragraphLoop: true,
+        linebreaks: true,
+    });
+
+    // Render the document with your exact placeholders
+    doc.render({
         employee_name: name,
         start_date: startDate,
         salary_amount: salary,
-      },
     });
 
+    // Generate the updated file as a buffer
+    const updatedDocBuffer = doc.getZip().generate({
+        type: 'nodebuffer',
+        compression: 'DEFLATE',
+    });
+
+    // Configure Email Transport
     const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
