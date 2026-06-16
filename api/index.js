@@ -1,6 +1,7 @@
 const express = require('express');
 const nodemailer = require('nodemailer');
-const { DocxTemplate } = require('docx-templates');
+const DocxTemplateModule = require('docx-templates');
+const DocxTemplate = DocxTemplateModule.DocxTemplate || DocxTemplateModule.default || DocxTemplateModule;
 const fs = require('fs');
 const path = require('path');
 const cors = require('cors');
