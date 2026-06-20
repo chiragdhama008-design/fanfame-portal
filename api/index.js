@@ -1,6 +1,7 @@
 const express = require('express');
 const nodemailer = require('nodemailer');
-const { createReport } = require('docx-templates');
+const PizZip = require('pizzip');
+const Docxtemplater = require('docxtemplater');
 const cors = require('cors');
 
 const app = express();
@@ -18,20 +19,40 @@ app.post('/api/send-offer', async (req, res) => {
   }
 
   try {
-    const templateBuffer = Buffer.from(BASE64_DOCX, 'base64');
+    const binaryContent = Buffer.from(BASE64_DOCX, 'base64');
+    const zip = new PizZip(binaryContent);
+    
+    const docXmlPath = "word/document.xml";
+    let docXmlText = zip.file(docXmlPath).asText();
+    
+    // 1. Repair the specific missing single brace bug on employee_name
+    docXmlText = docXmlText.replace(/\{\{employee_name\}(?!\})/g, '{{employee_name}}');
+    
+    // 2. Clean up any weird multi-space gaps inside the curly brackets
+    docXmlText = docXmlText.replace(/\{\s+\{/g, '{{').replace(/\}\s+\}/g, '}}');
+    
+    // 3. Clean up loose spacing variants inside the tag labels themselves
+    docXmlText = docXmlText.replace(/\{\{\s*employee_name\s*\}\}/g, '{{employee_name}}');
+    docXmlText = docXmlText.replace(/\{\{\s*start_date\s*\}\}/g, '{{start_date}}');
+    docXmlText = docXmlText.replace(/\{\{\s*salary_amount\s*\}\}/g, '{{salary_amount}}');
+    
+    zip.file(docXmlPath, docXmlText);
 
-    // Generate the document safely using docx-templates architecture
-    const updatedDocBuffer = await createReport({
-      template: templateBuffer,
-      data: {
+    const doc = new Docxtemplater(zip, {
+        paragraphLoop: true,
+        linebreaks: true
+    });
+
+    // Match your form values precisely to the cleaned keys
+    doc.render({
         employee_name: name,
         start_date: startDate,
-        salary_amount: salary,
-      },
-      // Automatically resolves spacing quirks introduced by Word editors
-      errorHandler: (err, raw_tag) => {
-        console.warn(`Skipped tag parsing anomaly: ${raw_tag}`);
-      }
+        salary_amount: salary
+    });
+
+    const updatedDocBuffer = doc.getZip().generate({
+        type: 'nodebuffer',
+        compression: 'DEFLATE',
     });
 
     const transporter = nodemailer.createTransport({
@@ -42,7 +63,6 @@ app.post('/api/send-offer', async (req, res) => {
       },
     });
 
-    // Clean text message layout without bold styles
     const emailHtml = `
       <p>Hi ${name},</p>
       <p>We're happy to offer you the position of Twitter Growth Assistant at FanFame Media.</p>
@@ -66,7 +86,7 @@ app.post('/api/send-offer', async (req, res) => {
       attachments: [
         {
           filename: `OfferLetter_${name.replace(/\s+/g, '_')}.docx`,
-          content: Buffer.from(updatedDocBuffer),
+          content: updatedDocBuffer,
         },
       ],
     };
@@ -75,7 +95,7 @@ app.post('/api/send-offer', async (req, res) => {
     return res.status(200).json({ message: 'Success' });
 
   } catch (error) {
-    console.error("Template compilation trace:", error);
+    console.error("Sanitizer Runtime Error:", error);
     return res.status(500).json({ error: error.message || 'Server error processing document.' });
   }
 });
