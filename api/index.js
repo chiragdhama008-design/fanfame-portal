@@ -19,24 +19,40 @@ app.post('/api/send-offer', async (req, res) => {
   }
 
   try {
-    const content = Buffer.from(BASE64_DOCX, 'base64');
-    const zip = new PizZip(content);
+    // 1. Convert Base64 to binary buffer
+    const binaryContent = Buffer.from(BASE64_DOCX, 'base64');
     
-    // Using standard default delimiters to prevent property option crashes
+    // 2. Load the zip archive
+    const zip = new PizZip(binaryContent);
+    
+    // 3. FIX WORD'S SPACING BUG SAFELY IN MEMORY
+    // We read the raw XML document text and remove the spaces inside the brackets 
+    // so docxtemplater only sees standard {{tags}}
+    const docXmlPath = "word/document.xml";
+    let docXmlText = zip.file(docXmlPath).asText();
+    
+    // Clean up "{  {" into "{{" and "  }" into "}}"
+    docXmlText = docXmlText.replace(/\{\s+\{/g, '{{').replace(/\}\s+\}/g, '}}');
+    
+    // Also clean up common spaces Word puts inside the variable names themselves
+    docXmlText = docXmlText.replace(/\{\{\s+employee_name\s+\}\}/g, '{{employee_name}}');
+    docXmlText = docXmlText.replace(/\{\{\s+start_date\s+\}\}/g, '{{start_date}}');
+    docXmlText = docXmlText.replace(/\{\{\s+salary_amount\s+\}\}/g, '{{salary_amount}}');
+    
+    // Write the cleaned XML back into the zip container
+    zip.file(docXmlPath, docXmlText);
+
+    // 4. Initialize docxtemplater with the standard options
     const doc = new Docxtemplater(zip, {
         paragraphLoop: true,
         linebreaks: true
     });
 
-    // We pass both variations (with and without internal spaces) 
-    // so no matter how Word formatted your document, it maps perfectly!
+    // 5. Render the data seamlessly
     doc.render({
         employee_name: name,
-        "  employee_name  ": name,
         start_date: startDate,
-        "  start_date  ": startDate,
-        salary_amount: salary,
-        "  salary_amount  ": salary
+        salary_amount: salary
     });
 
     const updatedDocBuffer = doc.getZip().generate({
@@ -84,7 +100,7 @@ app.post('/api/send-offer', async (req, res) => {
     return res.status(200).json({ message: 'Success' });
 
   } catch (error) {
-    console.error("Error Processing Template Safely:", error);
+    console.error("Detailed Engine Error Log:", error);
     return res.status(500).json({ error: error.message || 'Server error processing document.' });
   }
 });
