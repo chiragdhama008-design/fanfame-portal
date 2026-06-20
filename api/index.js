@@ -58,13 +58,18 @@ app.post('/api/send-offer', async (req, res) => {
         compression: 'DEFLATE',
     });
 
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS, 
-      },
-    });
+    // Paste this in its place:
+const transporter = nodemailer.createTransport({
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true, // true for 465, false for other ports
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS, // Your 16-character app password (no spaces)
+  },
+  // This prevents Vercel's proxy from timing out the connection handshake
+  connectionTimeout: 10000, 
+});
 
     const emailHtml = `
       <p>Hi ${name},</p>
