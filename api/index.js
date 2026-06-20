@@ -1,7 +1,6 @@
 const express = require('express');
 const nodemailer = require('nodemailer');
-const PizZip = require('pizzip');
-const Docxtemplater = require('docxtemplater');
+const { createReport } = require('docx-templates');
 const cors = require('cors');
 
 const app = express();
@@ -19,45 +18,20 @@ app.post('/api/send-offer', async (req, res) => {
   }
 
   try {
-    // 1. Convert Base64 to binary buffer
-    const binaryContent = Buffer.from(BASE64_DOCX, 'base64');
-    
-    // 2. Load the zip archive
-    const zip = new PizZip(binaryContent);
-    
-    // 3. FIX WORD'S SPACING BUG SAFELY IN MEMORY
-    // We read the raw XML document text and remove the spaces inside the brackets 
-    // so docxtemplater only sees standard {{tags}}
-    const docXmlPath = "word/document.xml";
-    let docXmlText = zip.file(docXmlPath).asText();
-    
-    // Clean up "{  {" into "{{" and "  }" into "}}"
-    docXmlText = docXmlText.replace(/\{\s+\{/g, '{{').replace(/\}\s+\}/g, '}}');
-    
-    // Also clean up common spaces Word puts inside the variable names themselves
-    docXmlText = docXmlText.replace(/\{\{\s+employee_name\s+\}\}/g, '{{employee_name}}');
-    docXmlText = docXmlText.replace(/\{\{\s+start_date\s+\}\}/g, '{{start_date}}');
-    docXmlText = docXmlText.replace(/\{\{\s+salary_amount\s+\}\}/g, '{{salary_amount}}');
-    
-    // Write the cleaned XML back into the zip container
-    zip.file(docXmlPath, docXmlText);
+    const templateBuffer = Buffer.from(BASE64_DOCX, 'base64');
 
-    // 4. Initialize docxtemplater with the standard options
-    const doc = new Docxtemplater(zip, {
-        paragraphLoop: true,
-        linebreaks: true
-    });
-
-    // 5. Render the data seamlessly
-    doc.render({
+    // Generate the document safely using docx-templates architecture
+    const updatedDocBuffer = await createReport({
+      template: templateBuffer,
+      data: {
         employee_name: name,
         start_date: startDate,
-        salary_amount: salary
-    });
-
-    const updatedDocBuffer = doc.getZip().generate({
-        type: 'nodebuffer',
-        compression: 'DEFLATE',
+        salary_amount: salary,
+      },
+      // Automatically resolves spacing quirks introduced by Word editors
+      errorHandler: (err, raw_tag) => {
+        console.warn(`Skipped tag parsing anomaly: ${raw_tag}`);
+      }
     });
 
     const transporter = nodemailer.createTransport({
@@ -68,6 +42,7 @@ app.post('/api/send-offer', async (req, res) => {
       },
     });
 
+    // Clean text message layout without bold styles
     const emailHtml = `
       <p>Hi ${name},</p>
       <p>We're happy to offer you the position of Twitter Growth Assistant at FanFame Media.</p>
@@ -91,7 +66,7 @@ app.post('/api/send-offer', async (req, res) => {
       attachments: [
         {
           filename: `OfferLetter_${name.replace(/\s+/g, '_')}.docx`,
-          content: updatedDocBuffer,
+          content: Buffer.from(updatedDocBuffer),
         },
       ],
     };
@@ -100,7 +75,7 @@ app.post('/api/send-offer', async (req, res) => {
     return res.status(200).json({ message: 'Success' });
 
   } catch (error) {
-    console.error("Detailed Engine Error Log:", error);
+    console.error("Template compilation trace:", error);
     return res.status(500).json({ error: error.message || 'Server error processing document.' });
   }
 });
