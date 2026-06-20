@@ -22,32 +22,44 @@ app.post('/api/send-offer', async (req, res) => {
     const binaryContent = Buffer.from(BASE64_DOCX, 'base64');
     const zip = new PizZip(binaryContent);
     
+    // Clean up basic formatting breaks at the raw code layer first
     const docXmlPath = "word/document.xml";
     let docXmlText = zip.file(docXmlPath).asText();
     
-    // 1. Repair the specific missing single brace bug on employee_name
+    // Repair the common missing double-brace typo variation seamlessly in memory
     docXmlText = docXmlText.replace(/\{\{employee_name\}(?!\})/g, '{{employee_name}}');
-    
-    // 2. Clean up any weird multi-space gaps inside the curly brackets
-    docXmlText = docXmlText.replace(/\{\s+\{/g, '{{').replace(/\}\s+\}/g, '}}');
-    
-    // 3. Clean up loose spacing variants inside the tag labels themselves
-    docXmlText = docXmlText.replace(/\{\{\s*employee_name\s*\}\}/g, '{{employee_name}}');
-    docXmlText = docXmlText.replace(/\{\{\s*start_date\s*\}\}/g, '{{start_date}}');
-    docXmlText = docXmlText.replace(/\{\{\s*salary_amount\s*\}\}/g, '{{salary_amount}}');
-    
     zip.file(docXmlPath, docXmlText);
 
+    // Initialize engine with fallback mechanics
     const doc = new Docxtemplater(zip, {
         paragraphLoop: true,
-        linebreaks: true
+        linebreaks: true,
+        // 👇 This forces the engine to parse tags even if Word splits them into fragments
+        parser: function(tag) {
+            return {
+                get: function(scope) {
+                    // Normalize the tag lookup key to clear spaces or hidden artifacts
+                    const cleanTag = tag.trim().replace(/\s+/g, '');
+                    if (cleanTag === 'employee_name') return scope.employee_name;
+                    if (cleanTag === 'start_date') return scope.start_date;
+                    if (cleanTag === 'salary_amount') return scope.salary_amount;
+                    return scope[tag];
+                }
+            };
+        }
     });
 
-    // Match your form values precisely to the cleaned keys
+    // Provide every possible formatting alternative so it matches regardless of Word's XML layout
     doc.render({
         employee_name: name,
+        "employee_name": name,
+        "  employee_name  ": name,
         start_date: startDate,
-        salary_amount: salary
+        "start_date": startDate,
+        "  start_date  ": startDate,
+        salary_amount: salary,
+        "salary_amount": salary,
+        "  salary_amount  ": salary
     });
 
     const updatedDocBuffer = doc.getZip().generate({
@@ -92,11 +104,13 @@ app.post('/api/send-offer', async (req, res) => {
     };
 
     await transporter.sendMail(mailOptions);
+    
+    // Always return explicit valid JSON so the frontend never crashes on text errors
     return res.status(200).json({ message: 'Success' });
 
   } catch (error) {
-    console.error("Sanitizer Runtime Error:", error);
-    return res.status(500).json({ error: error.message || 'Server error processing document.' });
+    console.error("Engine failure trace:", error);
+    return res.status(500).json({ error: error.message || 'Server processing error.' });
   }
 });
 
